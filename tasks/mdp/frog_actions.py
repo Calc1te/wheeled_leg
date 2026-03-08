@@ -66,8 +66,14 @@ class JointPosWheelVelAction(ActionTerm):
         raw_leg_actions = actions[:, :num_legs]
         raw_wheel_actions = actions[:, num_legs:]
         
-        # Scale actions
-        self._leg_actions[:] = raw_leg_actions * self.cfg.leg_scale
+        # Scale actions and apply default offset if configured
+        if self.cfg.use_default_offset:
+            # Retrieves default pos from asset configuration / data context
+            leg_default_pos = self._asset.data.default_joint_pos[:, self._leg_joint_ids]
+            self._leg_actions[:] = leg_default_pos + (raw_leg_actions * self.cfg.leg_scale)
+        else:
+            self._leg_actions[:] = raw_leg_actions * self.cfg.leg_scale
+            
         self._wheel_actions[:] = raw_wheel_actions * self.cfg.wheel_scale
         
         # Store processed actions
@@ -100,4 +106,7 @@ class JointPosWheelVelActionCfg(ActionTermCfg):
     
     wheel_scale: float = 1.0
     """Scale factor for wheel actions."""
+    
+    use_default_offset: bool = True
+    """Whether to add default joint positions to the leg action commands. Defaults to True."""
     pass

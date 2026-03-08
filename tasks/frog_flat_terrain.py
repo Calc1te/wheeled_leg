@@ -155,7 +155,7 @@ class EventCfg:
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
+            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "z": (0.4, 0.5), "yaw": (-3.14, 3.14)},
             "velocity_range": {
                 "x": (0.0, 0.0),
                 "y": (0.0, 0.0),
@@ -193,7 +193,7 @@ class RewardsCfg:
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     base_height_l2 = RewTerm(
-        func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.40}
+        func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.60}
     )
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.5)
     
@@ -208,18 +208,10 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     
-    base_contact = DoneTerm(
+    body_contact = DoneTerm(
         func=mdp.illegal_contact,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="base_link"),
-            "threshold": 1.0,
-        },
-    )
-    
-    leg_contact = DoneTerm(
-        func=mdp.illegal_contact,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*link1.*"),
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*_link.*"),
             "threshold": 1.0,
         },
     )
