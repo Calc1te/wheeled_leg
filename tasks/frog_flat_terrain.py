@@ -19,8 +19,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
-from mdp.terminations import joint_pos_out_of_manual_limit
-from mdp.frog_actions import JointPosWheelVelActionCfg
+from .mdp.terminations import joint_pos_out_of_manual_limit
+from .mdp.frog_actions import JointPosWheelVelActionCfg
 
 
 
@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 _PROJECT_PATH = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_PROJECT_PATH))
-from assets.frog.frog_CFG import FROG_CONFIG as _ROBOT_CONFIG
+from assets.frog_CFG import FROG_CONFIG as _ROBOT_CONFIG
 
 @configclass
 class FlatSceneCfg(InteractiveSceneCfg):
@@ -211,7 +211,7 @@ class TerminationsCfg:
     leg_contact = DoneTerm(
         func=mdp.illegal_contact,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*joint.*"),
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*link1.*"),
             "threshold": 1.0,
         },
     )

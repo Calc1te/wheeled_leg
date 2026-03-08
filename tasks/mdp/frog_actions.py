@@ -39,14 +39,27 @@ class JointPosWheelVelAction(ActionTerm):
         self._num_actions = len(self._leg_joint_ids) + len(self._wheel_joint_ids)
         
         # Buffers for actions
+        self._raw_actions = torch.zeros(self.num_envs, self._num_actions, device=self.device)
+        self._processed_actions = torch.zeros(self.num_envs, self._num_actions, device=self.device)
         self._leg_actions = torch.zeros(self.num_envs, len(self._leg_joint_ids), device=self.device)
         self._wheel_actions = torch.zeros(self.num_envs, len(self._wheel_joint_ids), device=self.device)
 
     @property
-    def num_actions(self) -> int:
+    def action_dim(self) -> int:
         return self._num_actions
+    
+    @property
+    def processed_actions(self) -> torch.Tensor:
+        return self._processed_actions
+
+    @property
+    def raw_actions(self) -> torch.Tensor:
+        return self._raw_actions
 
     def process_actions(self, actions: torch.Tensor):
+        # Store raw actions
+        self._raw_actions[:] = actions
+        
         num_legs = len(self._leg_joint_ids)
         
         # Splitting the action vector into legs (position) and wheels (velocity)
@@ -56,6 +69,10 @@ class JointPosWheelVelAction(ActionTerm):
         # Scale actions
         self._leg_actions[:] = raw_leg_actions * self.cfg.leg_scale
         self._wheel_actions[:] = raw_wheel_actions * self.cfg.wheel_scale
+        
+        # Store processed actions
+        self._processed_actions[:, :num_legs] = self._leg_actions
+        self._processed_actions[:, num_legs:] = self._wheel_actions
         
     def apply_actions(self):
         # Set leg joint position targets

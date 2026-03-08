@@ -25,7 +25,7 @@ FROG_CONFIG = ArticulationCfg(
             stabilization_threshold=0.001,
         ),
     ),
-    init_state = ArticulationCfg.InitStateCfg(
+    init_state = ArticulationCfg.InitialStateCfg(
         pos = (0.0, 0.0, 0.4),
         joint_pos = {".*": 0.0},
         joint_vel = {".*": 0.0}
