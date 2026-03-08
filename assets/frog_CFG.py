@@ -4,6 +4,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.sensors import RayCasterCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from pathlib import Path
+import math
 _PROJECT_PATH = Path(__file__).resolve().parents[1]
 
 FROG_CONFIG = ArticulationCfg(
@@ -26,8 +27,8 @@ FROG_CONFIG = ArticulationCfg(
         ),
     ),
     init_state = ArticulationCfg.InitialStateCfg(
-        pos = (0.0, 0.0, 0.4),
-        joint_pos = {".*": 0.0},
+        pos = (0.0, 0.0, 0.5),
+        joint_pos = {"ljoint0": math.radians(21.0), "ljoint1": math.radians(20.0), "rjoint0": math.radians(-21.0), "rjoint1": math.radians(-20.0)},
         joint_vel = {".*": 0.0}
     ),
     actuators = {

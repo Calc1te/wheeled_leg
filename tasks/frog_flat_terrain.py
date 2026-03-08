@@ -166,6 +166,14 @@ class EventCfg:
             },
         },
     )
+    reset_robot_joints = EventTerm(
+        func=mdp.reset_joints_by_scale,
+        mode="reset",
+        params={
+            "position_range": (1.0, 1.0), # 按 1.0 的比例（即 100% 取 init_state 的设置）
+            "velocity_range": (0.0, 0.0), # 重置时速度归零
+        },
+    )
 
 @configclass
 class RewardsCfg:
