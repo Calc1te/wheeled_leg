@@ -29,6 +29,7 @@ from pathlib import Path
 _PROJECT_PATH = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_PROJECT_PATH))
 from assets.frog_CFG import FROG_CONFIG as _ROBOT_CONFIG
+from tasks.mdp import rewards as local_rewards
 
 @configclass
 class FlatSceneCfg(InteractiveSceneCfg):
@@ -204,7 +205,10 @@ class RewardsCfg:
         func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.60}
     )
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.5)
-    chassis_pitch_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
+    chassis_pitch_l2 = RewTerm(
+        func=local_rewards.chassis_pitch_l2,
+        weight=-5.0,
+    )
 
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-5)
