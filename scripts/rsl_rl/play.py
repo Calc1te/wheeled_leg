@@ -77,7 +77,11 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
-import wheeled_leg.tasks  # noqa: F401
+import sys
+from pathlib import Path
+_PROJECT_PATH = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_PROJECT_PATH))
+import tasks
 
 
 @hydra_task_config(args_cli.task, args_cli.agent)

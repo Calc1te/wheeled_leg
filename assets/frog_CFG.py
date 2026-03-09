@@ -9,7 +9,7 @@ _PROJECT_PATH = Path(__file__).resolve().parents[1]
 
 FROG_CONFIG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=str(_PROJECT_PATH / "assets" / "frog.usd"),
+        usd_path=str(_PROJECT_PATH / "assets" / "HopperTrex.usd"),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
@@ -28,7 +28,7 @@ FROG_CONFIG = ArticulationCfg(
     ),
     init_state = ArticulationCfg.InitialStateCfg(
         pos = (0.0, 0.0, 0.5),
-        joint_pos = {"ljoint0": math.radians(21.0), "ljoint1": math.radians(20.0), "rjoint0": math.radians(-21.0), "rjoint1": math.radians(-20.0)},
+        joint_pos = {"thigh_left.*": math.radians(21.0), "knee_left": math.radians(20.0), "thigh_right.*": math.radians(-21.0), "knee_right": math.radians(-20.0)},
         joint_vel = {".*": 0.0}
     ),
     actuators = {
@@ -39,7 +39,7 @@ FROG_CONFIG = ArticulationCfg(
 
         # Upper joint motors (*joint0)
         "upper_joint_motors": DCMotorCfg(
-            joint_names_expr = [".*joint0"],
+            joint_names_expr = ["thigh.*"],
             effort_limit = 30.0,
             saturation_effort = 97.0,
             velocity_limit = 6.283,
@@ -49,7 +49,7 @@ FROG_CONFIG = ArticulationCfg(
         ),
         # Lower joint motors (*joint1)
         "lower_joint_motors": DCMotorCfg(
-            joint_names_expr = [".*joint1"],
+            joint_names_expr = ["knee.*"],
             effort_limit = 30.0,
             saturation_effort = 97.0,
             velocity_limit = 6.283,
@@ -59,7 +59,7 @@ FROG_CONFIG = ArticulationCfg(
         ),
         # Wheel motors (*_drive)
         "wheel_motors": DCMotorCfg(
-            joint_names_expr = [".*_drive"],
+            joint_names_expr = ["whee.*"],
             effort_limit = 2.42,
             saturation_effort = 4.5,
             velocity_limit = 71.35,
@@ -69,7 +69,3 @@ FROG_CONFIG = ArticulationCfg(
         )
     }
 )
-# joint names: ljoint0, ljoint1, l_drive, rjoint0, rjoint1, r_drive
-# body_names:   base_link, 
-#               right_link1_1, right_link2_1, right_wheel_1, 
-#               left_link1_1, left_link1_2, left_wheel_1 

@@ -46,10 +46,10 @@ class FlatSceneCfg(InteractiveSceneCfg):
         ),
     )
     robot: ArticulationCfg = _ROBOT_CONFIG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
+        prim_path="{ENV_REGEX_NS}/HopperTrex",
         spawn=_ROBOT_CONFIG.spawn.replace(activate_contact_sensors=True),
         init_state=_ROBOT_CONFIG.init_state.replace(
-            pos=(0.0, 0.0, 0.2),
+            pos=(0.0, 0.0, 0.5),
         ),
     )
     # height_scanner = RayCasterCfg(
@@ -61,7 +61,7 @@ class FlatSceneCfg(InteractiveSceneCfg):
     #     mesh_prim_paths=["/World/ground"],
     # )
     contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        prim_path="{ENV_REGEX_NS}/HopperTrex/.*/.*",
         history_length=3,
         track_air_time=True,
     )
@@ -75,14 +75,13 @@ class CommandsCfg:
         resampling_time_range=(10.0, 20.0),
         rel_standing_envs=0.02,
         rel_heading_envs=1.0,
-        heading_command=True,
+        heading_command=False,
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
             lin_vel_x=(-1.0, 1.0),
-            lin_vel_y=(-0.5, 0.5),
+            lin_vel_y=(0.0, 0.0),
             ang_vel_z=(-1.0, 1.0),
-            heading=(-math.pi, math.pi),
         ),
     )
 
@@ -92,8 +91,8 @@ class ActionsCfg:
     """Action specifications for the MDP."""
     joint_pos_and_wheel_vel = JointPosWheelVelActionCfg(
         asset_name="robot",
-        leg_joint_names=[".*joint0", ".*joint1"],
-        wheel_joint_names=[".*_drive"],
+        leg_joint_names=["thigh.*", "knee.*"],
+        wheel_joint_names=["whee.*"],
         leg_scale=0.5,
         wheel_scale=5.0,
     )
@@ -170,8 +169,8 @@ class EventCfg:
         func=mdp.reset_joints_by_scale,
         mode="reset",
         params={
-            "position_range": (1.0, 1.0), # 按 1.0 的比例（即 100% 取 init_state 的设置）
-            "velocity_range": (0.0, 0.0), # 重置时速度归零
+            "position_range": (1.0, 1.0),
+            "velocity_range": (0.0, 0.0),
         },
     )
 
@@ -189,6 +188,15 @@ class RewardsCfg:
         weight=0.0,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
+    # Encourage wheels to maintain contact with ground
+    wheel_contact = RewTerm(
+        func=mdp.desired_contacts,
+        weight=1.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="whee.*"),
+            "threshold": 1.0,
+        },
+    )
     # -- penalties
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
@@ -196,10 +204,29 @@ class RewardsCfg:
         func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.60}
     )
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.5)
-    
+    chassis_pitch_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
+
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-5)
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+
+    base_link_contact = RewTerm(
+        func =  mdp.illegal_contact,
+        params = {
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names= "chassis_base"),
+            "threshold": 1.0
+        },
+        weight = -100
+    )
+
+    calf_link_contact = RewTerm(
+        func =  mdp.illegal_contact,
+        params = {
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names= "calf.*"),
+            "threshold": 1.0
+        },
+        weight = -10
+    )
     # -- optional penalties
     # dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
 
@@ -211,7 +238,7 @@ class TerminationsCfg:
     body_contact = DoneTerm(
         func=mdp.illegal_contact,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*_link.*"),
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="thigh.*"), # find left / right_link
             "threshold": 1.0,
         },
     )

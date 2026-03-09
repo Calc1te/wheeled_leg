@@ -32,7 +32,11 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
-import isaaclab_tasks  # noqa: F401
+import sys
+from pathlib import Path
+_PROJECT_PATH = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_PROJECT_PATH))
+import tasks
 from isaaclab_tasks.utils import parse_env_cfg
 
 import wheeled_leg.tasks  # noqa: F401
