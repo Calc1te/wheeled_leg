@@ -209,10 +209,18 @@ class RewardsCfg:
         func=local_rewards.chassis_pitch_l2,
         weight=-5.0,
     )
+    joint_symmetry_l2 = RewTerm(
+        func=local_rewards.joint_symmetry_l2,
+        weight=-1.0,
+        params={
+            "left_cfg": SceneEntityCfg("robot", joint_names=["thigh_left.*", "knee_left"]),
+            "right_cfg": SceneEntityCfg("robot", joint_names=["thigh_right.*", "knee_right"]),
+        },
+    )
 
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-5)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
 
     base_link_contact = RewTerm(
         func =  mdp.illegal_contact,
