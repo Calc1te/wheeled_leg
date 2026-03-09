@@ -20,7 +20,7 @@ PhantomX_ROUGH_TERRAINS_CFG = TerrainGeneratorCfg(
     sub_terrains={
         "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
             proportion=0.2,
-            step_height_range=(0.01, 0.2),
+            step_height_range=(0.1, 0.21),
             step_width=0.3,
             platform_width=3.0,
             border_width=1.0,
@@ -28,7 +28,7 @@ PhantomX_ROUGH_TERRAINS_CFG = TerrainGeneratorCfg(
         ),
         "pyramid_stairs_inv": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
             proportion=0.2,
-            step_height_range=(0.01, 0.2),
+            step_height_range=(0.1, 0.21),
             step_width=0.3,
             platform_width=3.0,
             border_width=1.0,

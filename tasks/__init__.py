@@ -11,3 +11,13 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.frog_rsl_rl_ppo:FrogFlatPPORunnerCfg",
     },
 )
+
+gym.register(
+    id="frog-terrain-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.frog_all_terrain:FrogTerrainEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.frog_rsl_rl_ppo:FrogTerrainPPORunnerCfg",
+    },
+)
