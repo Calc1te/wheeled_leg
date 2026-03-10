@@ -93,7 +93,7 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
-from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
+from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
 import sys
 from pathlib import Path
@@ -115,6 +115,64 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
 
+def _migrate_legacy_rsl_rl_checkpoint(loaded_dict: dict) -> tuple[dict, bool]:
+    """Convert legacy rsl-rl checkpoint schema to the current actor/critic schema.
+
+    Returns the possibly migrated checkpoint and whether migration was applied.
+    """
+    if "actor_state_dict" in loaded_dict and "critic_state_dict" in loaded_dict:
+        return loaded_dict, False
+
+    if "model_state_dict" not in loaded_dict:
+        return loaded_dict, False
+
+    model_state = loaded_dict["model_state_dict"]
+    if not isinstance(model_state, dict):
+        return loaded_dict, False
+
+    actor_state = {}
+    critic_state = {}
+
+    for key, value in model_state.items():
+        if key.startswith("actor."):
+            actor_state[f"mlp.{key[len('actor.') :]}"] = value
+        elif key.startswith("actor_obs_normalizer."):
+            actor_state[f"obs_normalizer.{key[len('actor_obs_normalizer.') :]}"] = value
+        elif key == "log_std":
+            actor_state["distribution.std_param"] = value
+        elif key.startswith("critic."):
+            critic_state[f"mlp.{key[len('critic.') :]}"] = value
+        elif key.startswith("critic_obs_normalizer."):
+            critic_state[f"obs_normalizer.{key[len('critic_obs_normalizer.') :]}"] = value
+
+    migrated = {
+        "actor_state_dict": actor_state,
+        "critic_state_dict": critic_state,
+        "optimizer_state_dict": loaded_dict.get("optimizer_state_dict"),
+        "iter": loaded_dict.get("iter", loaded_dict.get("iteration", 0)),
+        "infos": loaded_dict.get("infos"),
+    }
+    return migrated, True
+
+
+def _filter_incompatible_state_dict(source_state: dict, target_state: dict, state_name: str) -> dict:
+    """Drop missing or shape-incompatible tensors before loading a state dict."""
+    filtered_state = {}
+    dropped = []
+    for key, value in source_state.items():
+        if key not in target_state:
+            dropped.append((key, "missing_key"))
+            continue
+        if hasattr(value, "shape") and hasattr(target_state[key], "shape") and value.shape != target_state[key].shape:
+            dropped.append((key, f"shape_mismatch {tuple(value.shape)} != {tuple(target_state[key].shape)}"))
+            continue
+        filtered_state[key] = value
+
+    if dropped:
+        print(f"[WARNING]: Dropped {len(dropped)} incompatible {state_name} tensor(s) during checkpoint load.")
+    return filtered_state
+
+
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Train with RSL-RL agent."""
@@ -124,6 +182,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg.max_iterations = (
         args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
     )
+
+    # Adapt deprecated config fields to the installed rsl-rl API version.
+    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
@@ -207,8 +268,25 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # load the checkpoint
     if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        # load previously trained model
-        runner.load(resume_path)
+        loaded_dict = torch.load(resume_path, weights_only=False, map_location=agent_cfg.device)
+        loaded_dict, migrated = _migrate_legacy_rsl_rl_checkpoint(loaded_dict)
+
+        if migrated:
+            print("[WARNING]: Migrated legacy checkpoint format to current actor/critic schema.")
+
+        if "actor_state_dict" in loaded_dict and "critic_state_dict" in loaded_dict:
+            loaded_dict["actor_state_dict"] = _filter_incompatible_state_dict(
+                loaded_dict["actor_state_dict"], runner.alg.actor.state_dict(), "actor"
+            )
+            loaded_dict["critic_state_dict"] = _filter_incompatible_state_dict(
+                loaded_dict["critic_state_dict"], runner.alg.critic.state_dict(), "critic"
+            )
+
+        # Legacy checkpoints often cannot safely restore optimizer internals across versions.
+        load_cfg = None if not migrated else {"actor": True, "critic": True, "optimizer": False, "iteration": True}
+        load_iteration = runner.alg.load(loaded_dict, load_cfg=load_cfg, strict=False)
+        if load_iteration:
+            runner.current_learning_iteration = loaded_dict.get("iter", 0)
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)

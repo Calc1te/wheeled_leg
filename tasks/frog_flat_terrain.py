@@ -19,6 +19,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
+from .mdp import height_scan_safe, nan_safe, nan_safe
 from .mdp.terminations import joint_pos_out_of_manual_limit
 from .mdp.frog_actions import JointPosWheelVelActionCfg
 
@@ -53,14 +54,14 @@ class FlatSceneCfg(InteractiveSceneCfg):
             pos=(0.0, 0.0, 0.5),
         ),
     )
-    # height_scanner = RayCasterCfg(
-    #     prim_path="{ENV_REGEX_NS}/Robot/base_link/Body_v1",
-    #     offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-    #     ray_alignment="yaw",
-    #     pattern_cfg=patterns.GridPatternCfg(resolution=0.2, size=(2.5, 2.5)),
-    #     debug_vis=True,
-    #     mesh_prim_paths=["/World/ground"],
-    # )
+    height_scanner = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/HopperTrex/HopperTrex/chassis_base",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        ray_alignment="yaw",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.2, size=(2.5, 2.5)),
+        debug_vis=False,
+        mesh_prim_paths=["/World/GroundPlane"],
+    )
     contact_sensor = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/HopperTrex/HopperTrex/.*",
         history_length=3,
@@ -286,4 +287,6 @@ class FrogFlatEnvCfg(ManagerBasedRLEnvCfg):
         # sensor update periods
         if self.scene.contact_sensor is not None:
             self.scene.contact_sensor.update_period = self.sim.dt
+        if self.scene.height_scanner is not None:
+            self.scene.height_scanner.update_period = self.sim.dt * 2  # 60 Hz
         

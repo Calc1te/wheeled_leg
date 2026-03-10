@@ -38,6 +38,27 @@ def nan_safe(func):
     return _wrapper
 
 
+def normalize_obs(func, scale: float, clip: float = 5.0):
+    """Decorator: sanitize, normalize, and clip observation tensors.
+
+    Args:
+        func: Observation function to wrap.
+        scale: Divisor applied to observation values.
+        clip: Symmetric clamp bound applied after normalization.
+    """
+    if scale <= 0.0:
+        raise ValueError("scale must be > 0 for observation normalization")
+
+    @functools.wraps(func)
+    def _wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        result = torch.nan_to_num(result, nan=0.0, posinf=1e6, neginf=-1e6)
+        result = result / scale
+        return torch.clamp(result, -clip, clip)
+
+    return _wrapper
+
+
 # ---------------------------------------------------------------------------
 # Custom observation functions
 # ---------------------------------------------------------------------------

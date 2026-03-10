@@ -57,7 +57,11 @@ class JointPosWheelVelAction(ActionTerm):
         return self._raw_actions
 
     def process_actions(self, actions: torch.Tensor):
-        # Store raw actions
+        # Keep policy output finite and bounded before mapping to targets.
+        actions = torch.nan_to_num(actions, nan=0.0, posinf=1.0, neginf=-1.0)
+        actions = torch.clamp(actions, -1.0, 1.0)
+
+        # Store sanitized raw actions
         self._raw_actions[:] = actions
         
         num_legs = len(self._leg_joint_ids)

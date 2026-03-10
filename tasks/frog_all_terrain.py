@@ -19,6 +19,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
+from .mdp import height_scan_safe, nan_safe, nan_safe
 from .mdp.terminations import joint_pos_out_of_manual_limit
 from .mdp.frog_actions import JointPosWheelVelActionCfg
 
@@ -91,16 +92,16 @@ class CommandsCfg:
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(10.0, 20.0),
-        rel_standing_envs=0.02,
-        rel_heading_envs=1.0,
+        rel_standing_envs=0.05,
+        rel_heading_envs=0.3,
         heading_command=True,
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(0.0, 1.0),
+            lin_vel_x=(0.4, 1.5),
             lin_vel_y=(0.0, 0.0),
-            ang_vel_z=(0.0, 0.0),
-            heading=(-math.pi, math.pi),
+            ang_vel_z=(-0.3, 0.3),
+            heading=(-math.pi / 2, math.pi / 2),
         ),
     )
 
@@ -144,12 +145,12 @@ class ObservationsCfg:
         velocity_commands = ObsTerm(
             func=mdp.generated_commands, params={"command_name": "base_velocity"}
         )
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        actions = ObsTerm(func=mdp.last_action)
+        joint_pos = ObsTerm(func=nan_safe(mdp.joint_pos_rel, scale=1.57, clip=5.0))
+        joint_vel = ObsTerm(func=nan_safe(mdp.joint_vel_rel, scale=20.0, clip=5.0))
+        actions = ObsTerm(func=nan_safe(mdp.last_action, scale=1.0, clip=5.0))
 
         height_scan = ObsTerm(
-            func=mdp.height_scan,
+            func=height_scan_safe,
             params={"sensor_cfg": SceneEntityCfg("height_scanner")},
             noise=Unoise(n_min=-0.001, n_max=0.001),
             clip=(-1.0, 1.0),
@@ -201,7 +202,6 @@ class EventCfg:
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
-    # alive = RewTerm(func=mdp.is_alive, weight=1.0)
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
         weight=5.0,
@@ -209,28 +209,31 @@ class RewardsCfg:
     )
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_exp,
-        weight=0.0,
+        weight=1.5,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
     # Encourage wheels to maintain contact with ground
     wheel_contact = RewTerm(
         func=mdp.desired_contacts,
-        weight=1.0,
+        weight=2.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="whee.*"),
             "threshold": 1.0,
         },
     )
     # -- penalties
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
+    # Relaxed: robot needs vertical velocity to climb terrain
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
+    # Relaxed: absolute height is meaningless on uneven terrain
     base_height_l2 = RewTerm(
-        func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.60}
+        func=mdp.base_height_l2, weight=-0.01, params={"target_height": 0.55}
     )
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.5)
+    # Relaxed: robot legitimately pitches on slopes
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-0.5)
     chassis_pitch_l2 = RewTerm(
         func=local_rewards.chassis_pitch_l2,
-        weight=-3.0,
+        weight=-0.5,
     )
     joint_symmetry_l2 = RewTerm(
         func=local_rewards.joint_symmetry_l2,
@@ -262,18 +265,33 @@ class RewardsCfg:
         },
         weight = -10
     )
-    # -- optional penalties
-    # dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
+
+    thigh_link_contact = RewTerm(
+        func =  mdp.illegal_contact,
+        params = {
+        "sensor_cfg": SceneEntityCfg("contact_sensor", body_names= "thigh.*"),
+        "threshold": 1.0
+        },
+        weight = -20
+    )
 
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    
+
     body_contact = DoneTerm(
         func=mdp.illegal_contact,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="thigh.*"), # find left / right_link
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="thigh.*"),
+            "threshold": 1.0,
+        },
+    )
+
+    base_contact = DoneTerm(
+        func=mdp.illegal_contact,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="chassis_base"),
             "threshold": 1.0,
         },
     )
@@ -306,8 +324,7 @@ class FrogTerrainEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1.0 / 120.0  # 120Hz physics simulation
         self.sim.render_interval = self.decimation
         self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**16
-        # Convex Decomposition 产生更多碰撞图元，需要更大的 collision stack
-        self.sim.physx.gpu_collision_stack_size = 128 * 2**20  # 128 MB（默认约16MB不够）
+        self.sim.physx.gpu_collision_stack_size = 128 * 2**20
         # sensor update periods
         if self.scene.contact_sensor is not None:
             self.scene.contact_sensor.update_period = self.sim.dt
