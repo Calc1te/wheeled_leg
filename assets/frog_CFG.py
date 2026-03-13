@@ -60,8 +60,8 @@ FROG_CONFIG = ArticulationCfg(
         # Wheel motors (*_drive)
         "wheel_motors": DCMotorCfg(
             joint_names_expr = ["whee.*"],
-            effort_limit = 2.42,
-            saturation_effort = 4.5,
+            effort_limit = 8.0, # 2.42 origin
+            saturation_effort = 10.0, # 4.5
             velocity_limit = 71.35,
             stiffness=0.0,               # Kp=0 for velocity control
             damping=2.0,                 # Kd  [Nm·s/rad]

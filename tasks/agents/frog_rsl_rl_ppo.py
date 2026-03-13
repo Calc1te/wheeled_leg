@@ -7,7 +7,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlMLPModelCfg, RslRlPp
 class FrogFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 48
     max_iterations = 3000
-    save_interval = 100
+    save_interval = 50
     experiment_name = "frog-flat-v0"
     empirical_normalization = True
     obs_groups = {"actor": ["policy"], "critic": ["critic"]}

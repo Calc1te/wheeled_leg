@@ -98,10 +98,10 @@ class CommandsCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(0.4, 1.5),
+            lin_vel_x=(-2, 2),
             lin_vel_y=(0.0, 0.0),
-            ang_vel_z=(-0.3, 0.3),
-            heading=(-math.pi / 2, math.pi / 2),
+            ang_vel_z=(-0.1, 0.1),
+            heading=(-math.pi / 6, math.pi / 6),
         ),
     )
 
@@ -124,30 +124,30 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
         # observation terms (order preserved)
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
-        base_orientation = ObsTerm(func=mdp.projected_gravity)
+        base_lin_vel = ObsTerm(func=nan_safe(mdp.base_lin_vel))
+        base_ang_vel = ObsTerm(func=nan_safe(mdp.base_ang_vel))
+        base_orientation = ObsTerm(func=nan_safe(mdp.projected_gravity))
         velocity_commands = ObsTerm(
-            func=mdp.generated_commands, params={"command_name": "base_velocity"}
+            func=nan_safe(mdp.generated_commands), params={"command_name": "base_velocity"}
         )
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        actions = ObsTerm(func=mdp.last_action)
+        joint_pos = ObsTerm(func=nan_safe(mdp.joint_pos_rel))
+        joint_vel = ObsTerm(func=nan_safe(mdp.joint_vel_rel))
+        actions = ObsTerm(func=nan_safe(mdp.last_action))
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     @configclass
     class CriticCfg(ObsGroup):
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
-        base_orientation = ObsTerm(func=mdp.projected_gravity)
+        base_lin_vel = ObsTerm(func=nan_safe(mdp.base_lin_vel))
+        base_ang_vel = ObsTerm(func=nan_safe(mdp.base_ang_vel))
+        base_orientation = ObsTerm(func=nan_safe(mdp.projected_gravity))
         velocity_commands = ObsTerm(
-            func=mdp.generated_commands, params={"command_name": "base_velocity"}
+            func=nan_safe(mdp.generated_commands), params={"command_name": "base_velocity"}
         )
-        joint_pos = ObsTerm(func=nan_safe(mdp.joint_pos_rel, scale=1.57, clip=5.0))
-        joint_vel = ObsTerm(func=nan_safe(mdp.joint_vel_rel, scale=20.0, clip=5.0))
-        actions = ObsTerm(func=nan_safe(mdp.last_action, scale=1.0, clip=5.0))
+        joint_pos = ObsTerm(func=nan_safe(mdp.joint_pos_rel))
+        joint_vel = ObsTerm(func=nan_safe(mdp.joint_vel_rel))
+        actions = ObsTerm(func=nan_safe(mdp.last_action))
 
         height_scan = ObsTerm(
             func=height_scan_safe,
@@ -204,18 +204,23 @@ class RewardsCfg:
     """Reward terms for the MDP."""
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
-        weight=5.0,
+        weight=10.0,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_exp,
-        weight=1.5,
+        weight=0.5,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
+    )
+    terrain_level_forward_bonus = RewTerm(
+        func=local_rewards.terrain_level_forward_bonus,
+        weight=1.0,
+        params={"min_forward_speed": 0.2, "target_forward_speed": 1.0},
     )
     # Encourage wheels to maintain contact with ground
     wheel_contact = RewTerm(
         func=mdp.desired_contacts,
-        weight=2.0,
+        weight=0.6,
         params={
             "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="whee.*"),
             "threshold": 1.0,
@@ -227,13 +232,13 @@ class RewardsCfg:
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     # Relaxed: absolute height is meaningless on uneven terrain
     base_height_l2 = RewTerm(
-        func=mdp.base_height_l2, weight=-0.01, params={"target_height": 0.55}
+        func=mdp.base_height_l2, weight=-0.001, params={"target_height": 0.55}
     )
     # Relaxed: robot legitimately pitches on slopes
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-0.5)
     chassis_pitch_l2 = RewTerm(
         func=local_rewards.chassis_pitch_l2,
-        weight=-0.5,
+        weight=-0.05,
     )
     joint_symmetry_l2 = RewTerm(
         func=local_rewards.joint_symmetry_l2,
@@ -254,7 +259,7 @@ class RewardsCfg:
             "sensor_cfg": SceneEntityCfg("contact_sensor", body_names= "chassis_base"),
             "threshold": 1.0
         },
-        weight = -100
+        weight = -50
     )
 
     calf_link_contact = RewTerm(
@@ -280,21 +285,21 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    body_contact = DoneTerm(
-        func=mdp.illegal_contact,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="thigh.*"),
-            "threshold": 1.0,
-        },
-    )
+    # body_contact = DoneTerm(
+    #     func=mdp.illegal_contact,
+    #     params={
+    #         "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="thigh.*"),
+    #         "threshold": 3.0,
+    #     },
+    # )
 
-    base_contact = DoneTerm(
-        func=mdp.illegal_contact,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="chassis_base"),
-            "threshold": 1.0,
-        },
-    )
+    # base_contact = DoneTerm(
+    #     func=mdp.illegal_contact,
+    #     params={
+    #         "sensor_cfg": SceneEntityCfg("contact_sensor", body_names="chassis_base"),
+    #         "threshold": 3.0,
+    #     },
+    # )
 
 @configclass
 class CurriculumCfg:

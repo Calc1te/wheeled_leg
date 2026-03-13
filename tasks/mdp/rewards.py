@@ -36,3 +36,32 @@ def chassis_pitch_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEn
     """
     asset = env.scene[asset_cfg.name]
     return torch.square(asset.data.projected_gravity_b[:, 1])
+
+
+def terrain_level_forward_bonus(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    min_forward_speed: float = 0.2,
+    target_forward_speed: float = 1.0,
+) -> torch.Tensor:
+    """Reward harder terrain traversal, but only when the robot actually moves forward.
+
+    The terrain level is normalized to [0, 1] using ``max_terrain_level`` and multiplied by
+    a smooth forward-speed gate. This prevents a policy from exploiting the reward by simply
+    idling on harder terrain tiles.
+    """
+    terrain = env.scene.terrain
+    asset = env.scene[asset_cfg.name]
+
+    if not hasattr(terrain, "terrain_levels"):
+        return torch.zeros(env.num_envs, device=env.device)
+
+    terrain_level = terrain.terrain_levels.float()
+    max_level = max(int(getattr(terrain, "max_terrain_level", 1)) - 1, 1)
+    level_norm = terrain_level / float(max_level)
+
+    forward_speed = torch.clamp(asset.data.root_lin_vel_b[:, 0], min=0.0)
+    # 0 below threshold, then smoothly ramps to 1 around target speed.
+    speed_gate = torch.clamp((forward_speed - min_forward_speed) / max(target_forward_speed - min_forward_speed, 1e-6), 0.0, 1.0)
+
+    return level_norm * speed_gate

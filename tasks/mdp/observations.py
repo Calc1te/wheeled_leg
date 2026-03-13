@@ -31,6 +31,9 @@ def nan_safe(func):
     the source: the rollout buffer will never contain NaN, so the normaliser
     stays healthy and training can continue even if some envs briefly explode.
     """
+    import functools
+    import torch
+
     @functools.wraps(func)
     def _wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
@@ -46,6 +49,9 @@ def normalize_obs(func, scale: float, clip: float = 5.0):
         scale: Divisor applied to observation values.
         clip: Symmetric clamp bound applied after normalization.
     """
+    import functools
+    import torch
+
     if scale <= 0.0:
         raise ValueError("scale must be > 0 for observation normalization")
 
@@ -88,11 +94,23 @@ def height_scan_safe(
 
 
 def undesired_contacts(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Penalize undesired contacts as the number of violations that are above a threshold."""
-    # extract the used quantities (to enable type-hinting)
-    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    # check if contact force is above threshold
-    net_contact_forces = contact_sensor.data.net_forces_w_history
-    is_contact = torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
-    # sum over contacts for each environment
-    return torch.sum(is_contact, dim=1)
+    """Check if any of the sensors in the list are currently in contact."""
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    net_contact_forces = sensor.data.net_forces_w_history[:, 0, :]
+    contact = torch.norm(net_contact_forces, dim=-1) > threshold
+    return contact.float()
+
+@nan_safe
+def base_velocity_safe(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Get the base linear and angular velocity."""
+    return torch.cat([env.scene.articulations["robot"].data.root_lin_vel_b, env.scene.articulations["robot"].data.root_ang_vel_b], dim=-1)
+
+@nan_safe
+def joint_pos_safe(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Get the joint positions."""
+    return env.scene.articulations["robot"].data.joint_pos
+
+@nan_safe
+def joint_vel_safe(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Get the joint velocities."""
+    return env.scene.articulations["robot"].data.joint_vel
